@@ -16,7 +16,7 @@ app = Flask(__name__)
 CORS(app)  
 
 # Database configuration  
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'  # Example using SQLite  
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://foodiesdb_xlpy_user:n7msZsS0KCXegbJeFmCHtJwAET23u1NP@dpg-cudphct6l47c73ahf40g-a.oregon-postgres.render.com/foodiesdb_xlpy'  # Example using SQLite  
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  
 
 # Initialize database and migration  
