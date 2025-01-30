@@ -9,7 +9,7 @@ interface FoodContextType {
   getDonationItems: () => FoodItem[];
 }
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'https://foodwasteapp-1.onrender.com/api';
 const isLocalStorageAvailable = typeof window !== 'undefined' && window.localStorage;
 
 const FoodContext = createContext<FoodContextType | undefined>(undefined);

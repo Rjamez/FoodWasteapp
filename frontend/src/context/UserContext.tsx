@@ -8,7 +8,7 @@ interface UserContextType {
   logout: () => void;  
 }  
 
-const API_URL = 'http://localhost:5000/api';  
+const API_URL = 'https://foodwasteapp-1.onrender.com/api';  
 
 const UserContext = createContext<UserContextType | undefined>(undefined);   
 
