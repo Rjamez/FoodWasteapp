@@ -17,13 +17,7 @@ depends_on = None
 
 
 def upgrade():
-    # Check if the user table already exists
-    conn = op.get_bind()
-    
-    # Check for user table
-    result = conn.execute(sa.text("SELECT to_regclass('public.user')"))
-    if result.scalar() is None:
-        op.create_table('user',
+    op.create_table('user',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=100), nullable=False),
         sa.Column('email', sa.String(length=100), nullable=False),
@@ -32,12 +26,9 @@ def upgrade():
         sa.Column('is_admin', sa.Boolean(), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('email')
-        )
+    )
     
-    # Check for food_item table
-    result = conn.execute(sa.text("SELECT to_regclass('public.food_item')"))
-    if result.scalar() is None:
-        op.create_table('food_item',
+    op.create_table('food_item',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(length=100), nullable=False),
         sa.Column('quantity', sa.Integer(), nullable=False),
@@ -45,12 +36,9 @@ def upgrade():
         sa.Column('user_id', sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
         sa.PrimaryKeyConstraint('id')
-        )
+    )
     
-    # Check for donation table
-    result = conn.execute(sa.text("SELECT to_regclass('public.donation')"))
-    if result.scalar() is None:
-        op.create_table('donation',
+    op.create_table('donation',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('food_item_id', sa.Integer(), nullable=False),
         sa.Column('user_id', sa.Integer(), nullable=False),
@@ -58,7 +46,7 @@ def upgrade():
         sa.ForeignKeyConstraint(['food_item_id'], ['food_item.id'], ),
         sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
         sa.PrimaryKeyConstraint('id')
-        )
+    )
     # ### end Alembic commands ###
 
 
