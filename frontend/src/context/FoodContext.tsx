@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import axios from 'axios';
 import type { FoodItem } from '../types';
 import { useUserContext } from './UserContext';
 
@@ -9,8 +10,23 @@ interface FoodContextType {
   getDonationItems: () => FoodItem[];
 }
 
-const API_URL = 'https://foodwasteapp-1.onrender.com/api';
-const isLocalStorageAvailable = typeof window !== 'undefined' && window.localStorage;
+const API_URL = 'http://localhost:5000/api';
+
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add token to requests if available
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 const FoodContext = createContext<FoodContextType | undefined>(undefined);
 
@@ -28,19 +44,8 @@ export function FoodProvider({ children }: { children: React.ReactNode }) {
 
   const fetchFoodItems = async () => {
     try {
-      const token = isLocalStorageAvailable ? localStorage.getItem('token') : null;
-      const response = await fetch(`${API_URL}/food-items`, { 
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch food items');
-      }
-
-      const data = await response.json();
-      setFoodItems(data);
+      const response = await api.get('/food-items');
+      setFoodItems(response.data);
     } catch (error) {
       console.error('Error fetching food items:', error);
     }
@@ -48,22 +53,8 @@ export function FoodProvider({ children }: { children: React.ReactNode }) {
 
   const addFoodItem = async (item: Omit<FoodItem, 'id' | 'userId'>) => {
     try {
-      const token = isLocalStorageAvailable ? localStorage.getItem('token') : null;
-      const response = await fetch(`${API_URL}/food-items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(item),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to add food item');
-      }
-
-      const newItem = await response.json();
-      setFoodItems([...foodItems, newItem]);
+      const response = await api.post('/food-items', item);
+      setFoodItems([...foodItems, response.data]);
     } catch (error) {
       console.error('Error adding food item:', error);
       throw error;
@@ -72,18 +63,7 @@ export function FoodProvider({ children }: { children: React.ReactNode }) {
 
   const deleteFoodItem = async (id: string) => {
     try {
-      const token = typeof window !== 'undefined' && localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/food-items/${id}`, { 
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete food item');
-      }
-
+      await api.delete(`/food-items/${id}`);
       setFoodItems(foodItems.filter(item => item.id !== id));
     } catch (error) {
       console.error('Error deleting food item:', error);
