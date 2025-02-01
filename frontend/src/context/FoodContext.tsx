@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import type { FoodItem } from '../types';
 import { useUserContext } from './UserContext';
 
@@ -8,18 +8,20 @@ interface FoodContextType {
   addFoodItem: (item: Omit<FoodItem, 'id' | 'userId'>) => Promise<void>;
   deleteFoodItem: (id: string) => Promise<void>;
   getDonationItems: () => FoodItem[];
+  loading: boolean;
+  error: string | null;
 }
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000,
 });
 
-// Add token to requests if available
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
@@ -28,10 +30,12 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-const FoodContext = createContext<FoodContextType | undefined>(undefined);
+export const FoodContext = createContext<FoodContextType | undefined>(undefined);
 
 export function FoodProvider({ children }: { children: React.ReactNode }) {
   const [foodItems, setFoodItems] = useState<FoodItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { user } = useUserContext();
 
   useEffect(() => {
@@ -42,32 +46,48 @@ export function FoodProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
+  const handleError = (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError<{ message: string }>;
+      return axiosError.response?.data?.message || 'An error occurred while processing your request';
+    }
+    return 'An unexpected error occurred';
+  };
+
   const fetchFoodItems = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const response = await api.get('/food-items');
       setFoodItems(response.data);
     } catch (error) {
-      console.error('Error fetching food items:', error);
+      setError(handleError(error));
+    } finally {
+      setLoading(false);
     }
   };
 
   const addFoodItem = async (item: Omit<FoodItem, 'id' | 'userId'>) => {
     try {
+      setError(null);
       const response = await api.post('/food-items', item);
       setFoodItems([...foodItems, response.data]);
     } catch (error) {
-      console.error('Error adding food item:', error);
-      throw error;
+      const errorMessage = handleError(error);
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
   const deleteFoodItem = async (id: string) => {
     try {
+      setError(null);
       await api.delete(`/food-items/${id}`);
       setFoodItems(foodItems.filter(item => item.id !== id));
     } catch (error) {
-      console.error('Error deleting food item:', error);
-      throw error;
+      const errorMessage = handleError(error);
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
@@ -78,8 +98,17 @@ export function FoodProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const value = {
+    foodItems,
+    addFoodItem,
+    deleteFoodItem,
+    getDonationItems,
+    loading,
+    error
+  };
+
   return (
-    <FoodContext.Provider value={{ foodItems, addFoodItem, deleteFoodItem, getDonationItems }}>
+    <FoodContext.Provider value={value}>
       {children}
     </FoodContext.Provider>
   );

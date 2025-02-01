@@ -1,41 +1,53 @@
 from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy  # Import SQLAlchemy
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_mail import Mail
 import jwt
 import datetime
 from functools import wraps
 import os
 from dotenv import load_dotenv
-from flask_migrate import Migrate  # Importing Migrate
+from models import db, FoodItem, User  # Import models
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL') 
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Flask mail configuration
+app.config["MAIL_SERVER"] = 'smtp.gmail.com'
+app.config["MAIL_PORT"] = 587
+app.config["MAIL_USE_TLS"] = True
+app.config["MAIL_USE_SSL"] = False
+app.config["MAIL_USERNAME"] = os.getenv("MAIL_USERNAME")  # Use environment variable
+app.config["MAIL_PASSWORD"] = os.getenv("MAIL_PASSWORD")  # Use environment variable
+app.config["MAIL_DEFAULT_SENDER"] = os.getenv("MAIL_DEFAULT_SENDER")  # Use environment variable
+
+mail = Mail(app)
+
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")  # Use environment variable
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(minutes=5)
+
+jwt = JWTManager(app)
+
 CORS(app, resources={
     r"/api/*": {
-        "origins": os.getenv('CORS_ORIGIN', 'http://localhost:5173'),
+        "origins": os.getenv('CORS_ORIGIN', '*'),
         "methods": ["GET", "POST", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
     }
 })
 
-# Use environment variable for secret key
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'development-secret-key-123')
+# Initialize database and migration
+db.init_app(app)  # Initialize db with the app
+migrate = Migrate(app, db)
 
-# Set the SQLAlchemy database URI
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'  # Example for SQLite
-
-# Initialize SQLAlchemy
-db = SQLAlchemy(app)  # Create an instance of SQLAlchemy
-
-# Mock database (replace with a real database in production)
-users = {}
-food_items = {}
-donations = {}
-
-# Initialize Flask-Migrate
-migrate = Migrate(app, db)  # Initialize Flask-Migrate
+# Use environment variable for secret key with a strong default
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24).hex())
 
 def token_required(f):
     @wraps(f)
@@ -46,7 +58,7 @@ def token_required(f):
         try:
             token = token.split()[1]  # Remove 'Bearer ' prefix
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-            current_user = users.get(data['user_id'])
+            current_user = User.query.get(data['user_id'])  # Use User model
             if not current_user:
                 return jsonify({'message': 'User not found'}), 401
         except jwt.ExpiredSignatureError:
@@ -54,122 +66,42 @@ def token_required(f):
         except jwt.InvalidTokenError:
             return jsonify({'message': 'Invalid token'}), 401
         except Exception as e:
-            return jsonify({'message': str(e)}), 401
+            return jsonify({'message': 'Authentication error'}), 401
         return f(current_user, *args, **kwargs)
     return decorated
 
-@app.route('/api/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    if not all(k in data for k in ('name', 'email', 'password')):
-        return jsonify({'message': 'Missing required fields'}), 400
-    
-    if any(u['email'] == data['email'] for u in users.values()):
-        return jsonify({'message': 'Email already registered'}), 400
-    
-    user_id = str(len(users) + 1)
-    user = {
-        'id': user_id,
-        'name': data['name'],
-        'email': data['email'],
-        'password': data['password'],  # In production, hash the password!
-        'isVerified': True,
-        'isAdmin': False
-    }
-    users[user_id] = user
-    
-    token = jwt.encode({
-        'user_id': user_id,
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)
-    }, app.config['SECRET_KEY'])
-    
-    return jsonify({
-        'token': token,
-        'user': {k: v for k, v in user.items() if k != 'password'}
-    })
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({'message': 'Resource not found'}), 404
 
-@app.route('/api/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    if not all(k in data for k in ('email', 'password')):
-        return jsonify({'message': 'Missing required fields'}), 400
-    
-    user = next((u for u in users.values() if u['email'] == data['email']), None)
-    if not user or user['password'] != data['password']:
-        return jsonify({'message': 'Invalid credentials'}), 401
-    
-    token = jwt.encode({
-        'user_id': user['id'],
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1)
-    }, app.config['SECRET_KEY'])
-    
-    return jsonify({
-        'token': token,
-        'user': {k: v for k, v in user.items() if k != 'password'}
-    })
+@app.errorhandler(500)
+def internal_error(e):
+    return jsonify({'message': 'Internal server error'}), 500
 
-@app.route('/api/food-items', methods=['GET', 'POST'])
-@token_required
-def food_items_route(current_user):
-    if request.method == 'GET':
-        user_items = [item for item in food_items.values() 
-                     if item['userId'] == current_user['id']]
-        return jsonify(user_items)
-    
-    data = request.get_json()
-    if not all(k in data for k in ('name', 'quantity', 'expiryDate')):
-        return jsonify({'message': 'Missing required fields'}), 400
-    
-    item_id = str(len(food_items) + 1)
-    item = {
-        'id': item_id,
-        'name': data['name'],
-        'quantity': data['quantity'],
-        'expiryDate': data['expiryDate'],
-        'userId': current_user['id']
-    }
-    food_items[item_id] = item
-    return jsonify(item), 201
+@app.route('/api/food-items', methods=['GET'])
+def get_food_items():
+    items = FoodItem.query.all()
+    return jsonify([{'id': item.id, 'name': item.name, 'quantity': item.quantity, 'expiry_date': item.expiry_date} for item in items]), 200
 
-@app.route('/api/food-items/<item_id>', methods=['DELETE'])
-@token_required
-def delete_food_item(current_user, item_id):
-    item = food_items.get(item_id)
-    if not item:
-        return jsonify({'message': 'Item not found'}), 404
-    if item['userId'] != current_user['id']:
-        return jsonify({'message': 'Unauthorized'}), 403
-    
-    del food_items[item_id]
-    return '', 204
+@app.route('/api/food-items', methods=['POST'])
+def add_food_item():
+    new_item = request.json
+    if 'name' not in new_item or 'quantity' not in new_item or 'expiry_date' not in new_item:
+        return jsonify({'message': 'Missing required fields: name, quantity, expiry_date'}), 400
+    food_item = FoodItem(name=new_item['name'], quantity=new_item['quantity'], expiry_date=new_item['expiry_date'])
+    db.session.add(food_item)
+    db.session.commit()
+    return jsonify({'id': food_item.id, 'name': food_item.name, 'quantity': food_item.quantity, 'expiry_date': food_item.expiry_date}), 201
 
-@app.route('/api/donations', methods=['GET', 'POST'])
-@token_required
-def donations_route(current_user):
-    if request.method == 'GET':
-        user_donations = [d for d in donations.values() 
-                         if d['userId'] == current_user['id']]
-        return jsonify(user_donations)
-    
-    data = request.get_json()
-    if not all(k in data for k in ('foodItemId',)):
-        return jsonify({'message': 'Missing required fields'}), 400
-    
-    food_item = food_items.get(data['foodItemId'])
-    if not food_item:
-        return jsonify({'message': 'Food item not found'}), 404
-    if food_item['userId'] != current_user['id']:
-        return jsonify({'message': 'Unauthorized'}), 403
-    
-    donation_id = str(len(donations) + 1)
-    donation = {
-        'id': donation_id,
-        'foodItemId': data['foodItemId'],
-        'userId': current_user['id'],
-        'donationDate': datetime.datetime.utcnow().isoformat()
-    }
-    donations[donation_id] = donation
-    return jsonify(donation), 201
+@app.route('/api/food-items/<int:item_id>', methods=['DELETE'])
+def delete_food_item(item_id):
+    food_item = FoodItem.query.get(item_id)
+    if food_item:
+        db.session.delete(food_item)
+        db.session.commit()
+        return jsonify({'message': 'Item deleted'}), 200
+    return jsonify({'message': 'Item not found'}), 404
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.getenv('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

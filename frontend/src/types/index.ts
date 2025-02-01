@@ -10,7 +10,7 @@ export interface FoodItem {
   id: string;
   name: string;
   quantity: number;
-  expiryDate: Date;
+  expiryDate: string | Date;
   userId: string;
 }
 
@@ -18,5 +18,5 @@ export interface Donation {
   id: string;
   foodItemId: string;
   userId: string;
-  donationDate: Date;
+  donationDate: string | Date;
 }
