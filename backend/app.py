@@ -8,14 +8,14 @@ import jwt
 import datetime
 from functools import wraps
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv # type: ignore
 from models import db, FoodItem, User  # Import models
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL') 
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('postgresql://foodiesdb_xlpy_user:n7msZsS0KCXegbJeFmCHtJwAET23u1NP@dpg-cudphct6l47c73ahf40g-a.oregon-postgres.render.com/foodiesdb_xlpy') 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Flask mail configuration
@@ -36,7 +36,7 @@ jwt = JWTManager(app)
 
 CORS(app, resources={
     r"/api/*": {
-        "origins": os.getenv('CORS_ORIGIN', '*'),
+        "origins": "http://localhost:5173",  # Allow only this origin
         "methods": ["GET", "POST", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
     }
@@ -85,12 +85,19 @@ def get_food_items():
 
 @app.route('/api/food-items', methods=['POST'])
 def add_food_item():
+    # Log the incoming data for debugging
     new_item = request.json
+    print(f"Received data: {new_item}")  # This will print the request data to the console/log
+    
     if 'name' not in new_item or 'quantity' not in new_item or 'expiry_date' not in new_item:
         return jsonify({'message': 'Missing required fields: name, quantity, expiry_date'}), 400
+    
+    # Add the food item to the database
     food_item = FoodItem(name=new_item['name'], quantity=new_item['quantity'], expiry_date=new_item['expiry_date'])
     db.session.add(food_item)
     db.session.commit()
+    
+    # Return the response with the food item data
     return jsonify({'id': food_item.id, 'name': food_item.name, 'quantity': food_item.quantity, 'expiry_date': food_item.expiry_date}), 201
 
 @app.route('/api/food-items/<int:item_id>', methods=['DELETE'])

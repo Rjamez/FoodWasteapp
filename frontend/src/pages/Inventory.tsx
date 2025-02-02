@@ -3,7 +3,8 @@ import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { useFoodContext } from '../context/FoodContext';
 
 const Inventory: React.FC = () => {
-  const { foodItems, addFoodItem, deleteFoodItem, loading, error } = useFoodContext();
+  const { foodItems, addFoodItem, deleteFoodItem, loading } = useFoodContext();
+  const [error, setError] = useState<string | null>(null); // Define error state
 
   const [newItem, setNewItem] = useState({
     name: '',
@@ -12,6 +13,7 @@ const Inventory: React.FC = () => {
   });
 
   const handleAddItem = async (e: React.FormEvent) => {
+    setError(null); // Clear any previous error
     e.preventDefault();
     try {
       await addFoodItem({
@@ -24,20 +26,15 @@ const Inventory: React.FC = () => {
         quantity: 1,
         expiryDate: new Date().toISOString().split('T')[0]
       });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
-      // Error is handled by context
+      setError('Failed to add food item.'); // Set error message
     }
   };
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Food Inventory</h1>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg">
-          {error}
-        </div>
-      )}
 
       <form onSubmit={handleAddItem} className="bg-white p-6 rounded-lg shadow-md space-y-4">
         <div className="grid md:grid-cols-3 gap-4">
@@ -78,6 +75,7 @@ const Inventory: React.FC = () => {
       </form>
 
       <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        {error && <p className="text-red-500">{error}</p>} {/* Display error message */}
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
