@@ -33,5 +33,6 @@ Donation Model: donation_id (PK), food_item (ForeignKey to FoodItem), user (Fore
 A User can have multiple FoodItems.
 A FoodItem can be marked for Donation by a User.
 
-Here is the Github link:<https://github.com/Rjamez/FoodWasteapp>
+Here is the Github Repository link:<https://github.com/Rjamez/FoodWasteapp>
 Here is the link to the Google slides:<<https://docs.google.com/presentation/d> 1kM1oQ1T5gaHpJ45ygl652zr5QJB0TEw1TXxbdfazRjw/edit#slide=id.p>
+Here is the link to the video recording presentation:<https://drive.google.com/file/d/1Z1DvCqEmWa81LZhanoHwoRlMrowzI7oC/view?usp=drive_link>
